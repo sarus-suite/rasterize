@@ -13,7 +13,7 @@ struct Args {
 enum Command {
     /// Validate EDF file 
     Validate {
-        filepath: std::path::PathBuf,
+        filepath: String,
     },
 }
 
