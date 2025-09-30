@@ -20,7 +20,12 @@ enum Command {
 fn main() {
     let args = Args::parse();
 
-    match args.command {
+    let rc = match args.command {
         Command::Validate { filepath } => validate(filepath),
+    };
+
+    match rc {
+        true => std::process::exit(0),
+        false => std::process::exit(1),
     }
 }
