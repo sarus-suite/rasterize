@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*' 
+
+jobs:
+  build:
+    if: github.actor == 'matteo-chesi'
+    runs-on: chesim-zinal-login
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Clean tmp
+        rm -rf tmp
+      
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_TAG##*\/v}\"/1"
+
+      - name: Build
+        run: |
+          cargo build --release --target=x86_64-unknown-linux-musl 
+
+      - name: Rename artifact
+        run: |
+          mkdir tmp
+          cp target/x86_64-unknown-linux-musl/release/rasterize tmp/rasterize-amd64
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          artifacts: "tmp/rasterize*"
+          allowUpdates: true
+          replacesArtifacts: false
+          draft: false
+          prerelease: false
