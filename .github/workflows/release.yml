@@ -20,9 +20,13 @@ jobs:
       - name: Collect raster library
         run: |
           cd ..
-          git clone https://github.com/sarus-suite/raster.git raster
+          if [ ! -d raster ]
+          then
+            git clone https://github.com/sarus-suite/raster.git raster
+          fi
           cd raster
           git checkout VCUE-1081
+          git pull
           cd ../rasterize
       
       - name: Update version in Cargo.toml
