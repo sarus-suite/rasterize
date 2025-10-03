@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*' 
+
+jobs:
+  build:
+    if: github.actor == 'matteo-chesi'
+    runs-on: chesim-zinal-login
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Clean tmp
+        run: |
+          rm -rf tmp
+      
+          
+      - name: Collect raster library
+        run: |
+          cd ..
+          if [ ! -d raster ]
+          then
+            git clone https://github.com/sarus-suite/raster.git raster
+          fi
+          cd raster
+          git checkout VCUE-1081
+          git pull
+          cd ../rasterize
+
+      - name: Set env
+        run: |
+          GIT_VERSION=$(git describe --tags --always | tr '-' '_')
+          #echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV      
+          echo "RELEASE_VERSION=${GIT_VERSION}" >> $GITHUB_ENV      
+
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_VERSION#v}\"/1" Cargo.toml
+
+      - name: Build
+        run: |
+          cargo build --release --target=x86_64-unknown-linux-musl 
+
+      - name: Rename artifact
+        run: |
+          mkdir tmp
+          cp target/x86_64-unknown-linux-musl/release/rasterize tmp/rasterize-amd64
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          artifacts: "tmp/rasterize*"
+          allowUpdates: true
+          replacesArtifacts: false
+          draft: false
+          prerelease: false
