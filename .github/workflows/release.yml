@@ -16,9 +16,18 @@ jobs:
         run: |
           rm -rf tmp
       
+          
+      - name: Collect raster library
+        run: |
+          cd ..
+          git clone https://github.com/sarus-suite/raster.git raster
+          cd raster
+          git checkout VCUE-1081
+          cd ../rasterize
+      
       - name: Update version in Cargo.toml
         run: |
-          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_TAG##*\/v}\"/1"
+          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_TAG##*\/v}\"/1" Cargo.toml
 
       - name: Build
         run: |
