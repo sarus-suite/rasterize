@@ -28,10 +28,13 @@ jobs:
           git checkout VCUE-1081
           git pull
           cd ../rasterize
-      
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV      
+
       - name: Update version in Cargo.toml
         run: |
-          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_TAG##*\/v}\"/1" Cargo.toml
+          sed -i -E -e "/^name = \"rasterize\"/,/^version \=/ s/^version =.*$/version = \"${RELEASE_VERSION#v}\"/1" Cargo.toml
 
       - name: Build
         run: |
