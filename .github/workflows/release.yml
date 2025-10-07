@@ -25,7 +25,7 @@ jobs:
             git clone https://github.com/sarus-suite/raster.git raster
           fi
           cd raster
-          git checkout VCUE-1081
+          git checkout main
           git pull
           cd ../rasterize
 
