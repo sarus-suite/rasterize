@@ -92,7 +92,7 @@ fn render(filepath: String, fout: FormatOutput) -> i32 {
         return_code: 0,
     };
 
-    let ret = raster::render(filepath.clone());
+    let ret = raster::render(filepath.clone(), String::from("/etc/edf"));
 
     match ret {
         Ok(o) => {
