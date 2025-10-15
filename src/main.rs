@@ -17,13 +17,13 @@ enum FormatOutput {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Validate EDF file 
+    /// Validate EDF file
     Validate {
         filepath: String,
         #[arg(long, short, value_enum,default_value_t = FormatOutput::Text)]
         output: FormatOutput,
     },
-    /// Render EDF file 
+    /// Render EDF file
     Render {
         filepath: String,
         #[arg(long, short, value_enum,default_value_t = FormatOutput::Text)]
@@ -39,7 +39,6 @@ struct Out {
 }
 
 fn printout(fout: FormatOutput, out: Out) {
-
     match fout {
         FormatOutput::Text => {
             let o = out.stdout.as_str();
@@ -53,11 +52,10 @@ fn printout(fout: FormatOutput, out: Out) {
             }
         }
         FormatOutput::Json => {
-            println!("{}", (
-                    serde_json::to_string_pretty(&out)).
-                        unwrap_or(String::from("{}"))
+            println!(
+                "{}",
+                (serde_json::to_string_pretty(&out)).unwrap_or(String::from("{}"))
             );
-
         }
     }
 }
@@ -74,7 +72,7 @@ fn validate(filepath: String, fout: FormatOutput) -> i32 {
     match ret {
         Ok(_) => {
             out.stdout = format!("{filepath} is a valid EDF file");
-        },
+        }
         Err(e) => {
             out.stdout = format!("{filepath} is an INVALID EDF file");
             out.stderr = format!("{e}");
@@ -92,12 +90,15 @@ fn render(filepath: String, fout: FormatOutput) -> i32 {
         return_code: 0,
     };
 
-    let ret = raster::render(filepath.clone(), String::from("/etc/edf"));
+    let ret = raster::render(filepath.clone());
 
     match ret {
         Ok(o) => {
-            out.stdout = format!("{}", serde_json::to_string_pretty(&o).unwrap_or(String::from("ERROR")));
-        },
+            out.stdout = format!(
+                "{}",
+                serde_json::to_string_pretty(&o).unwrap_or(String::from("ERROR"))
+            );
+        }
         Err(e) => {
             out.stdout = format!("");
             out.stderr = format!("{e}");
