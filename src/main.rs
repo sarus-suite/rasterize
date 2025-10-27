@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use raster::{self, EDF};
+use sarus_suite_podman_driver::{self as pmd, PodmanCtx};
 use serde::{Deserialize, Serialize};
+use std::{path::PathBuf, str::Utf8Error};
 
 /// CLI tool for sarus-suite
 #[derive(Parser)]
@@ -29,6 +32,62 @@ enum Command {
         #[arg(long, short, value_enum,default_value_t = FormatOutput::Text)]
         output: FormatOutput,
     },
+    /// Run container from EDF file
+    Run {
+        filepath: String,
+        container_cmd: Vec<String>,
+    },
+}
+
+fn get_podman_default_graphroot(p_ctx: &PodmanCtx) -> Result<PathBuf, Utf8Error> {
+    let info_out = sarus_suite_podman_driver::info(Some("{{.Store.GraphRoot}}"), Some(p_ctx));
+    let graphroot = str::from_utf8(&info_out.stdout)?;
+    let graphroot = graphroot.trim();
+    Ok(PathBuf::from(graphroot))
+}
+
+fn generate_podman_contexts(
+    edf: &EDF,
+) -> Result<(PodmanCtx, PodmanCtx, PodmanCtx, PodmanCtx), Box<dyn std::error::Error>> {
+    let default_ctx = PodmanCtx {
+        podman_path: PathBuf::from(&edf.podman_path),
+        module: None,
+        graphroot: None,
+        runroot: None,
+        parallax_mount_program: None,
+        ro_store: None,
+    };
+
+    let default_graphroot = get_podman_default_graphroot(&default_ctx)?;
+
+    let migrate_ctx = PodmanCtx {
+        podman_path: PathBuf::from(&edf.podman_path),
+        module: None,
+        graphroot: Some(default_graphroot),
+        runroot: None,
+        parallax_mount_program: None,
+        ro_store: Some(PathBuf::from(&edf.parallax_imagestore)),
+    };
+
+    let ro_ctx = PodmanCtx {
+        podman_path: PathBuf::from(&edf.podman_path),
+        module: None,
+        graphroot: Some(PathBuf::from(&edf.parallax_imagestore)),
+        runroot: None,
+        parallax_mount_program: None,
+        ro_store: None,
+    };
+
+    let run_ctx = PodmanCtx {
+        podman_path: PathBuf::from(&edf.podman_path),
+        module: None,
+        graphroot: Some(PathBuf::from("/dev/shm/rasterize-run/graphroot")),
+        runroot: Some(PathBuf::from("/dev/shm/rasterize-run/runroot")),
+        parallax_mount_program: Some(PathBuf::from(&edf.parallax_mount_program)),
+        ro_store: Some(PathBuf::from(&edf.parallax_imagestore)),
+    };
+
+    Ok((default_ctx, migrate_ctx, ro_ctx, run_ctx))
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -109,12 +168,57 @@ fn render(filepath: String, fout: FormatOutput) -> i32 {
     return out.return_code;
 }
 
+fn run(filepath: String, container_cmd: &Vec<String>) -> i32 {
+    let ret = raster::render(filepath.clone());
+
+    let edf = match ret {
+        Ok(o) => o,
+        Err(_e) => panic!("Failed rendering EDF"),
+    };
+
+    let (default_ctx, migrate_ctx, ro_ctx, run_ctx) = match generate_podman_contexts(&edf) {
+        Ok(o) => o,
+        Err(e) => panic!("Failed to generate Podman contexts: {}", e),
+    };
+
+    let c_ctx = pmd::ContainerCtx {
+        name: String::from("rasterize"),
+        interactive: true,
+        detach: false,
+        set_env: true,
+        pidfile: None,
+    };
+
+    if !pmd::image_exists(&edf.image, Some(&ro_ctx)) {
+        println!("Pulling {} with Podman", &edf.image);
+        pmd::pull(&edf.image, Some(&default_ctx));
+        println!("Migrating {} with Parallax", &edf.image);
+        _ = match pmd::parallax_migrate(
+            &PathBuf::from(&edf.parallax_path),
+            &migrate_ctx,
+            &edf.image,
+        ) {
+            Ok(_) => (),
+            Err(e) => panic!("Failed migrating parallax: {}", e),
+        };
+        assert!(pmd::image_exists(&edf.image, Some(&run_ctx)));
+    }
+
+    pmd::run_from_edf(&edf, Some(&run_ctx), &c_ctx, container_cmd)
+        .code()
+        .unwrap()
+}
+
 fn main() {
     let args = Args::parse();
 
     let rc = match args.command {
         Command::Validate { filepath, output } => validate(filepath, output),
         Command::Render { filepath, output } => render(filepath, output),
+        Command::Run {
+            filepath,
+            container_cmd,
+        } => run(filepath, &container_cmd),
     };
 
     std::process::exit(rc);
